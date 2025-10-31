@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>장기판 게임</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>장기판 게임</h1>
+        <div class="game-info">
+            <div id="status">게임 대기중...</div>
+            <div id="turn">차례: <span id="current-turn">홍</span></div>
+        </div>
+        <div class="board-container">
+            <canvas id="board" width="720" height="800"></canvas>
+        </div>
+        <div class="controls">
+            <button id="new-game">새 게임</button>
+            <button id="reset">리셋</button>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+server:
+  port: 7184
+
+spring:
+  application:
+    name: be_board01
+
+logging:
+  level:
+    com.board.game: DEBUG
