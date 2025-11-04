@@ -9,31 +9,99 @@ public class Board {
     private PlayerColor currentTurn;
 
     public Board() {
-        this.pieces = new ArrayList<>();
-        this.currentTurn = PlayerColor.RED;
-        initializeBoard();
+        this(false);
     }
 
-    private void initializeBoard() {
-        // Initialize RED pieces (left side, 6x7 board)
-        // Place pieces from back (x: 0-4), leave front line empty (x: 5)
-        // 5 rows × 7 columns = 35 pieces
-        int redPieceCount = 0;
-        for (int x = 0; x <= 4; x++) {  // Back 5 rows
+    public Board(boolean empty) {
+        this.pieces = new ArrayList<>();
+        this.currentTurn = PlayerColor.RED;
+        if (!empty) {
+            initializeBoard();
+        }
+    }
+
+    public List<Piece> getInitialPieces(PlayerColor color) {
+        List<Piece> initialPieces = new ArrayList<>();
+
+        // Define piece layout for each row (y: 0-6)
+        PieceType[][] layout = {
+            {PieceType.MINE, PieceType.GENERAL, PieceType.FLAG, PieceType.LIEUTENANT_GENERAL,
+             PieceType.MAJOR_GENERAL, PieceType.BRIGADIER_GENERAL, PieceType.MINE},
+            {PieceType.COLONEL, PieceType.LIEUTENANT_COLONEL, PieceType.MAJOR, PieceType.CAPTAIN,
+             PieceType.FIRST_LIEUTENANT, PieceType.SECOND_LIEUTENANT, PieceType.WARRANT_OFFICER},
+            {PieceType.MASTER_SERGEANT, PieceType.SERGEANT_FIRST_CLASS, PieceType.SERGEANT, PieceType.STAFF_SERGEANT,
+             PieceType.CORPORAL, PieceType.PRIVATE_FIRST_CLASS, PieceType.PRIVATE},
+            {PieceType.ENGINEER, PieceType.ENGINEER, PieceType.SCOUT, PieceType.SCOUT,
+             PieceType.AIRPLANE, PieceType.AIRPLANE, PieceType.TANK},
+            {PieceType.TANK, PieceType.MISSILE, PieceType.MISSILE, PieceType.ANTI_AIRCRAFT,
+             PieceType.ANTI_AIRCRAFT, PieceType.RADAR, PieceType.RADAR}
+        };
+
+        int count = 0;
+        for (int x = 0; x <= 4; x++) {
             for (int y = 0; y <= 6; y++) {
-                String id = "R" + (++redPieceCount);
-                pieces.add(new Piece(id, PlayerColor.RED, new Position(x, y)));
+                String id = (color == PlayerColor.RED ? "R" : "B") + (++count);
+                PieceType type = layout[x][y];
+                // Pieces start in inventory (position null or special marker)
+                initialPieces.add(new Piece(id, color, type, null));
             }
         }
 
-        // Initialize BLUE pieces (right side, 6x7 board)
-        // Place pieces from back (x: 9-13), leave front line empty (x: 8)
-        // 5 rows × 7 columns = 35 pieces
+        return initialPieces;
+    }
+
+    public void placePiece(String pieceId, Position position) {
+        Piece piece = pieces.stream()
+                .filter(p -> p.getId().equals(pieceId))
+                .findFirst()
+                .orElse(null);
+
+        if (piece != null) {
+            piece.setPosition(position);
+        }
+    }
+
+    private void initializeBoard() {
+        // Define piece layout for each row (y: 0-6)
+        PieceType[][] layout = {
+            // x=0 (back row): 7 pieces
+            {PieceType.MINE, PieceType.GENERAL, PieceType.FLAG, PieceType.LIEUTENANT_GENERAL,
+             PieceType.MAJOR_GENERAL, PieceType.BRIGADIER_GENERAL, PieceType.MINE},
+
+            // x=1: 7 pieces
+            {PieceType.COLONEL, PieceType.LIEUTENANT_COLONEL, PieceType.MAJOR, PieceType.CAPTAIN,
+             PieceType.FIRST_LIEUTENANT, PieceType.SECOND_LIEUTENANT, PieceType.WARRANT_OFFICER},
+
+            // x=2: 7 pieces
+            {PieceType.MASTER_SERGEANT, PieceType.SERGEANT_FIRST_CLASS, PieceType.SERGEANT, PieceType.STAFF_SERGEANT,
+             PieceType.CORPORAL, PieceType.PRIVATE_FIRST_CLASS, PieceType.PRIVATE},
+
+            // x=3: 7 pieces
+            {PieceType.ENGINEER, PieceType.ENGINEER, PieceType.SCOUT, PieceType.SCOUT,
+             PieceType.AIRPLANE, PieceType.AIRPLANE, PieceType.TANK},
+
+            // x=4 (front row): 7 pieces
+            {PieceType.TANK, PieceType.MISSILE, PieceType.MISSILE, PieceType.ANTI_AIRCRAFT,
+             PieceType.ANTI_AIRCRAFT, PieceType.RADAR, PieceType.RADAR}
+        };
+
+        // Initialize RED pieces (left side, x: 0-4, y: 0-6)
+        int redPieceCount = 0;
+        for (int x = 0; x <= 4; x++) {
+            for (int y = 0; y <= 6; y++) {
+                String id = "R" + (++redPieceCount);
+                PieceType type = layout[x][y];
+                pieces.add(new Piece(id, PlayerColor.RED, type, new Position(x, y)));
+            }
+        }
+
+        // Initialize BLUE pieces (right side, x: 9-13, y: 0-6)
         int bluePieceCount = 0;
-        for (int x = 9; x <= 13; x++) {  // Back 5 rows
+        for (int x = 9; x <= 13; x++) {
             for (int y = 0; y <= 6; y++) {
                 String id = "B" + (++bluePieceCount);
-                pieces.add(new Piece(id, PlayerColor.BLUE, new Position(x, y)));
+                PieceType type = layout[x - 9][y];  // Mirror the same layout
+                pieces.add(new Piece(id, PlayerColor.BLUE, type, new Position(x, y)));
             }
         }
     }

@@ -18,12 +18,31 @@ class JanggiBoard {
         this.selectedPiece = null;
         this.currentTurn = 'RED';
         this.roomId = null;
+        this.sessionId = this.generateSessionId();
+        this.playerId = this.generatePlayerId();
+        this.pollingInterval = null;
+        this.gameStatus = 'WAITING';
 
         // Initialize
         this.initializeBoard();
         this.setupEventListeners();
         this.drawBoard();
         this.drawPieces();
+        this.updateIdDisplay();
+    }
+
+    generateSessionId() {
+        return 'S' + Math.random().toString(36).substring(2, 9).toUpperCase();
+    }
+
+    generatePlayerId() {
+        return 'P' + Math.random().toString(36).substring(2, 9).toUpperCase();
+    }
+
+    updateIdDisplay() {
+        document.getElementById('session-id').textContent = `접속 ID: ${this.sessionId}`;
+        document.getElementById('player-id').textContent = `플레이어 ID: ${this.playerId}`;
+        document.getElementById('room-id').textContent = this.roomId || '-';
     }
 
     initializeBoard() {
@@ -181,6 +200,31 @@ class JanggiBoard {
             ctx.lineWidth = 2;
             ctx.stroke();
 
+            // Draw piece symbol and name
+            if (piece.type) {
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#FFFFFF'; // White text
+                ctx.strokeStyle = '#000'; // Black outline for text
+
+                // Draw symbol (top, larger)
+                if (piece.type.symbol) {
+                    ctx.font = 'bold 16px sans-serif';
+                    ctx.textBaseline = 'middle';
+                    ctx.lineWidth = 0.5;
+                    ctx.strokeText(piece.type.symbol, x, y - 6);
+                    ctx.fillText(piece.type.symbol, x, y - 6);
+                }
+
+                // Draw korean name (bottom, smaller)
+                if (piece.type.koreanName) {
+                    ctx.font = 'bold 8px sans-serif';
+                    ctx.textBaseline = 'top';
+                    ctx.lineWidth = 0.3;
+                    ctx.strokeText(piece.type.koreanName, x, y + 6);
+                    ctx.fillText(piece.type.koreanName, x, y + 6);
+                }
+            }
+
             // Highlight selected piece
             if (this.selectedPiece &&
                 this.selectedPiece.x === piece.x &&
@@ -214,8 +258,68 @@ class JanggiBoard {
             this.createNewGame();
         });
 
+        document.getElementById('join-game').addEventListener('click', () => {
+            this.showJoinRoomDialog();
+        });
+
+        document.getElementById('join-room-submit').addEventListener('click', () => {
+            const roomId = document.getElementById('join-room-id').value.trim();
+            if (roomId) {
+                this.joinRoom(roomId);
+            }
+        });
+
+        document.getElementById('join-room-cancel').addEventListener('click', () => {
+            this.hideJoinRoomDialog();
+        });
+
         document.getElementById('reset').addEventListener('click', () => {
             this.reset();
+        });
+    }
+
+    showJoinRoomDialog() {
+        document.getElementById('join-room-container').style.display = 'flex';
+        document.getElementById('join-room-id').value = '';
+        document.getElementById('join-room-id').focus();
+    }
+
+    hideJoinRoomDialog() {
+        document.getElementById('join-room-container').style.display = 'none';
+    }
+
+    joinRoom(roomId) {
+        console.log('Joining room:', roomId, 'with playerId:', this.playerId);
+        fetch(`/api/game/rooms/${roomId}/join`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                playerId: this.playerId
+            })
+        })
+        .then(response => {
+            console.log('Join room response status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Join room response:', data);
+            if (data.roomId) {
+                this.roomId = data.roomId;
+                this.loadGameState(data);
+                this.updateIdDisplay();
+                this.hideJoinRoomDialog();
+                this.startPolling();
+                console.log('Joined room, polling started. Room ID:', this.roomId);
+                alert(`방에 참여했습니다! (${data.playerColor})`);
+            } else {
+                alert(data.message || '방 참여에 실패했습니다.');
+            }
+        })
+        .catch(err => {
+            console.error('Join room error:', err);
+            alert('방 참여 중 오류가 발생했습니다: ' + err.message);
         });
     }
 
@@ -307,35 +411,154 @@ class JanggiBoard {
     }
 
     createNewGame() {
-        fetch('/api/game/create', {
-            method: 'POST'
+        console.log('Creating new game with playerId:', this.playerId);
+        fetch('/api/game/rooms', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                playerId: this.playerId
+            })
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Create game response status:', response.status);
+            return response.json();
+        })
         .then(data => {
+            console.log('Game created:', data);
             this.roomId = data.roomId;
             this.loadGameState(data);
-            document.getElementById('status').textContent = `방 ID: ${this.roomId}`;
+            this.updateIdDisplay();
+            this.startPolling();
+            console.log('Game created, polling started. Room ID:', this.roomId);
         })
-        .catch(err => console.error('Create game error:', err));
+        .catch(err => {
+            console.error('Create game error:', err);
+            alert('게임 생성 실패: ' + err.message);
+        });
+    }
+
+    startPolling() {
+        console.log('Starting polling for room:', this.roomId);
+        if (this.pollingInterval) {
+            console.log('Clearing existing polling interval');
+            clearInterval(this.pollingInterval);
+        }
+
+        // Poll immediately once
+        if (this.roomId) {
+            console.log('Polling immediately...');
+            this.pollGameState();
+        }
+
+        this.pollingInterval = setInterval(() => {
+            if (this.roomId) {
+                console.log('Polling interval tick, room:', this.roomId);
+                this.pollGameState();
+            }
+        }, 1000); // Poll every second
+        console.log('Polling interval set:', this.pollingInterval);
+    }
+
+    stopPolling() {
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval);
+            this.pollingInterval = null;
+        }
+    }
+
+    pollGameState() {
+        fetch(`/api/game/rooms/${this.roomId}`)
+            .then(response => response.json())
+            .then(data => {
+                const oldStatus = this.gameStatus;
+                this.gameStatus = data.status;
+
+                console.log('Poll result:', {
+                    oldStatus,
+                    newStatus: data.status,
+                    redPlayer: data.redPlayer,
+                    bluePlayer: data.bluePlayer,
+                    redReady: data.redPlayerReady,
+                    blueReady: data.bluePlayerReady
+                });
+
+                // Check if we need to transition to SETUP mode
+                if (oldStatus === 'WAITING' && data.status === 'SETUP') {
+                    console.log('Transitioning to SETUP mode');
+                    this.handleSetupMode(data);
+                }
+
+                // Check if both players are ready and game is starting
+                if (data.status === 'PLAYING' && oldStatus === 'SETUP') {
+                    console.log('Game starting!');
+                    this.handleGameStart(data);
+                }
+
+                // Update player ready status display
+                this.updatePlayerReadyStatus(data);
+            })
+            .catch(err => console.error('Poll error:', err));
+    }
+
+    handleSetupMode(data) {
+        alert('두 플레이어가 접속했습니다! 말 배치를 시작하세요.');
+        // Here you would implement piece placement UI
+    }
+
+    handleGameStart(data) {
+        alert('게임 시작!');
+        this.loadGameState(data);
+    }
+
+    updatePlayerReadyStatus(data) {
+        let statusText = '';
+
+        if (data.status === 'WAITING') {
+            const playerCount = (data.redPlayer ? 1 : 0) + (data.bluePlayer ? 1 : 0);
+            statusText = `플레이어 대기 중... (${playerCount}/2)`;
+        } else if (data.status === 'SETUP') {
+            const redReady = data.redPlayerReady ? '✓' : '✗';
+            const blueReady = data.bluePlayerReady ? '✓' : '✗';
+            statusText = `준비 상태 - RED: ${redReady} BLUE: ${blueReady}`;
+        } else if (data.status === 'PLAYING') {
+            statusText = '게임 진행 중';
+        }
+
+        console.log('Updating status text to:', statusText);
+        const turnElement = document.getElementById('turn');
+        console.log('Turn element:', turnElement);
+        if (turnElement) {
+            turnElement.textContent = statusText;
+            console.log('Status text updated successfully');
+        } else {
+            console.error('Turn element not found!');
+        }
     }
 
     loadGameState(data) {
         this.pieces = data.pieces;
         this.currentTurn = data.currentTurn;
+        this.gameStatus = data.status;
         this.selectedPiece = null;
         this.updateTurnDisplay();
+        this.updatePlayerReadyStatus(data);
         this.redraw();
     }
 
     reset() {
+        this.stopPolling();
         this.pieces = [];
         this.selectedPiece = null;
         this.currentTurn = 'RED';
         this.roomId = null;
+        this.gameStatus = 'WAITING';
         this.initializeBoard();
         this.updateTurnDisplay();
+        this.updateIdDisplay();
         this.redraw();
-        document.getElementById('status').textContent = '게임 대기중...';
+        document.getElementById('turn').textContent = '차례: 홍';
     }
 
     updateTurnDisplay() {

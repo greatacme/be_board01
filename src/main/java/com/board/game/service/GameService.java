@@ -98,15 +98,46 @@ public class GameService {
             return null;
         }
 
+        PlayerColor playerColor = playerId != null ? room.getPlayerColor(playerId) : null;
+
         GameStateResponse response = new GameStateResponse();
         response.setRoomId(roomId);
-        response.setPieces(room.getBoard().getPieces());
         response.setCurrentTurn(room.getBoard().getCurrentTurn());
         response.setStatus(room.getStatus());
         response.setWinner(room.getBoard().getWinner());
+        response.setRedPlayerReady(room.isRedPlayerReady());
+        response.setBluePlayerReady(room.isBluePlayerReady());
+        response.setRedPlayer(room.getRedPlayer());
+        response.setBluePlayer(room.getBluePlayer());
 
         if (playerId != null) {
-            response.setPlayerColor(room.getPlayerColor(playerId));
+            response.setPlayerColor(playerColor);
+        }
+
+        // Filter pieces based on game status
+        List<Piece> pieces = room.getBoard().getPieces();
+        if (room.getStatus() == GameStatus.SETUP && playerColor != null) {
+            // During SETUP: Only show own pieces
+            List<Piece> filteredPieces = pieces.stream()
+                    .filter(p -> p.getColor() == playerColor)
+                    .toList();
+            response.setPieces(filteredPieces);
+        } else if (room.getStatus() == GameStatus.PLAYING && playerColor != null) {
+            // During PLAYING: Hide opponent piece types
+            List<Piece> maskedPieces = pieces.stream()
+                    .map(p -> {
+                        if (p.getColor() != playerColor && !p.isCaptured()) {
+                            // Create a copy with hidden type for opponent pieces
+                            Piece masked = new Piece(p.getId(), p.getColor(), null, p.getPosition());
+                            masked.setCaptured(false);
+                            return masked;
+                        }
+                        return p;
+                    })
+                    .toList();
+            response.setPieces(maskedPieces);
+        } else {
+            response.setPieces(pieces);
         }
 
         return response;
@@ -125,5 +156,132 @@ public class GameService {
                 .filter(room -> room.getStatus() == GameStatus.WAITING && !room.isFull())
                 .map(GameRoom::getRoomId)
                 .toList();
+    }
+
+    public List<Piece> getInitialPieces(String roomId, String playerId) {
+        GameRoom room = rooms.get(roomId);
+        if (room == null) {
+            return null;
+        }
+
+        PlayerColor color = room.getPlayerColor(playerId);
+        if (color == null) {
+            return null;
+        }
+
+        return room.getBoard().getInitialPieces(color);
+    }
+
+    public boolean placePiece(String roomId, String playerId, String pieceId, Position position) {
+        GameRoom room = rooms.get(roomId);
+        if (room == null || room.getStatus() != GameStatus.SETUP) {
+            return false;
+        }
+
+        PlayerColor playerColor = room.getPlayerColor(playerId);
+        if (playerColor == null) {
+            return false;
+        }
+
+        // If position is null, return piece to inventory
+        if (position == null) {
+            Piece piece = room.getBoard().getPieces().stream()
+                    .filter(p -> p.getId().equals(pieceId))
+                    .findFirst()
+                    .orElse(null);
+
+            if (piece == null) {
+                // Get from initial pieces
+                List<Piece> initialPieces = room.getBoard().getInitialPieces(playerColor);
+                piece = initialPieces.stream()
+                        .filter(p -> p.getId().equals(pieceId))
+                        .findFirst()
+                        .orElse(null);
+
+                if (piece != null) {
+                    room.getBoard().getPieces().add(piece);
+                }
+            }
+
+            if (piece != null) {
+                piece.setPosition(null);
+                log.info("Piece {} returned to inventory in room {}", pieceId, roomId);
+                return true;
+            }
+
+            return false;
+        }
+
+        // Validate position is in player's own camp during SETUP
+        if (!isValidPlacementPosition(position, playerColor)) {
+            log.warn("Invalid placement position {} for player color {} in room {}", position, playerColor, roomId);
+            return false;
+        }
+
+        // Add piece to board if not exists
+        Piece piece = room.getBoard().getPieces().stream()
+                .filter(p -> p.getId().equals(pieceId))
+                .findFirst()
+                .orElse(null);
+
+        if (piece == null) {
+            // Get initial piece
+            List<Piece> initialPieces = room.getBoard().getInitialPieces(playerColor);
+            piece = initialPieces.stream()
+                    .filter(p -> p.getId().equals(pieceId))
+                    .findFirst()
+                    .orElse(null);
+
+            if (piece != null) {
+                room.getBoard().getPieces().add(piece);
+            }
+        }
+
+        if (piece != null) {
+            piece.setPosition(position);
+            log.info("Piece {} placed at {} in room {}", pieceId, position, roomId);
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean isValidPlacementPosition(Position position, PlayerColor playerColor) {
+        // Validate position is valid
+        if (!position.isValid()) {
+            return false;
+        }
+
+        // RED players can only place pieces on their side (x: 0-5)
+        if (playerColor == PlayerColor.RED && !position.isRedSide()) {
+            return false;
+        }
+
+        // BLUE players can only place pieces on their side (x: 8-13)
+        if (playerColor == PlayerColor.BLUE && !position.isBlueSide()) {
+            return false;
+        }
+
+        // Cannot place on front line (x=5 for RED, x=8 for BLUE)
+        if (playerColor == PlayerColor.RED && position.getX() == 5) {
+            return false;
+        }
+
+        if (playerColor == PlayerColor.BLUE && position.getX() == 8) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public boolean setPlayerReady(String roomId, String playerId) {
+        GameRoom room = rooms.get(roomId);
+        if (room == null || room.getStatus() != GameStatus.SETUP) {
+            return false;
+        }
+
+        room.setPlayerReady(playerId, true);
+        log.info("Player {} ready in room {}. Both ready: {}", playerId, roomId, room.areBothPlayersReady());
+        return true;
     }
 }

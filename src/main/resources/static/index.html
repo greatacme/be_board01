@@ -10,17 +10,30 @@
     <div class="container">
         <h1>장기판 게임</h1>
         <div class="game-info">
-            <div id="status">게임 대기중...</div>
+            <div id="game-id-container">
+                <div id="game-id">게임 ID: <span id="room-id" class="game-id-value">-</span></div>
+            </div>
             <div id="turn">차례: <span id="current-turn">홍</span></div>
+        </div>
+        <div class="secondary-info">
+            <span id="session-id" class="info-dim">접속 ID: -</span>
+            <span class="info-separator">|</span>
+            <span id="player-id" class="info-dim">플레이어 ID: -</span>
         </div>
         <div class="board-container">
             <canvas id="board" width="720" height="800"></canvas>
         </div>
         <div class="controls">
             <button id="new-game">새 게임</button>
+            <button id="join-game">방 참여</button>
             <button id="reset">리셋</button>
         </div>
+        <div class="join-room-container" id="join-room-container" style="display:none;">
+            <input type="text" id="join-room-id" placeholder="방 ID 입력">
+            <button id="join-room-submit">참여하기</button>
+            <button id="join-room-cancel">취소</button>
+        </div>
     </div>
-    <script src="game.js"></script>
+    <script src="game.js?v=2"></script>
 </body>
 </html>
