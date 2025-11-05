@@ -37,22 +37,34 @@ public class GameRestController {
         String playerId = payload.get("playerId");
         String roomId = gameService.createRoom(playerId);
 
+        com.board.game.model.GameRoom room = gameService.getRoom(roomId);
         GameStateResponse response = gameService.getGameState(roomId, playerId);
         response.setMessage("Room created: " + roomId);
+        response.setPlayerColor(room.getPlayerColor(playerId));  // 색상 정보 추가
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/join")
     public ResponseEntity<GameStateResponse> joinGame(@RequestBody Map<String, String> payload) {
         String playerId = payload.get("playerId");
+        System.out.println("🎮 Player joining: " + playerId);
+
         com.board.game.model.GameRoom room = gameService.findOrCreateRoom(playerId);
 
         if (room == null) {
             return ResponseEntity.badRequest().build();
         }
 
-        GameStateResponse response = gameService.getGameState(room.getRoomId());
+        System.out.println("✅ Player " + playerId + " joined room " + room.getRoomId() + " as " + room.getPlayerColor(playerId));
+
+        GameStateResponse response = gameService.getGameState(room.getRoomId(), playerId);
         response.setMessage("Player joined: " + playerId);
+        response.setPlayerColor(room.getPlayerColor(playerId));  // 색상 정보 추가
+
+        // Broadcast to other player
+        System.out.println("📢 Broadcasting room state after join...");
+        broadcastGameStateToRoom(room.getRoomId());
+
         return ResponseEntity.ok(response);
     }
 
@@ -70,12 +82,12 @@ public class GameRestController {
             return ResponseEntity.badRequest().body(errorResponse);
         }
 
-        GameStateResponse response = gameService.getGameState(roomId);
+        GameStateResponse response = gameService.getGameState(roomId, playerId);
         response.setMessage("Player joined: " + playerId);
         response.setPlayerColor(room.getPlayerColor(playerId));
 
-        // Broadcast to all players in the room via WebSocket
-        messagingTemplate.convertAndSend("/topic/game." + roomId, response);
+        // Broadcast to all players in the room via WebSocket (each with their view)
+        broadcastGameStateToRoom(roomId);
 
         return ResponseEntity.ok(response);
     }
@@ -119,8 +131,8 @@ public class GameRestController {
 
         GameStateResponse response = gameService.getGameState(roomId, playerId);
 
-        // Broadcast to all players in the room via WebSocket
-        messagingTemplate.convertAndSend("/topic/game." + roomId, response);
+        // Broadcast to all players in the room via WebSocket (each with their view)
+        broadcastGameStateToRoom(roomId);
 
         return ResponseEntity.ok(response);
     }
@@ -142,9 +154,45 @@ public class GameRestController {
         GameStateResponse response = gameService.getGameState(roomId, playerId);
         response.setMessage("Player ready");
 
-        // Broadcast to all players in the room via WebSocket
-        messagingTemplate.convertAndSend("/topic/game." + roomId, response);
+        // Broadcast to all players in the room via WebSocket (each with their view)
+        broadcastGameStateToRoom(roomId);
 
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 각 플레이어에게 맞춤형 게임 상태를 전송합니다.
+     * RED 플레이어는 /topic/game.{roomId}.RED 를 구독
+     * BLUE 플레이어는 /topic/game.{roomId}.BLUE 를 구독
+     */
+    private void broadcastGameStateToRoom(String roomId) {
+        com.board.game.model.GameRoom room = gameService.getRoom(roomId);
+        if (room == null) {
+            System.out.println("⚠️ Room not found: " + roomId);
+            return;
+        }
+
+        System.out.println("🔄 Broadcasting to room: " + roomId);
+        System.out.println("   RED player: " + room.getRedPlayer());
+        System.out.println("   BLUE player: " + room.getBluePlayer());
+        System.out.println("   Status: " + room.getStatus());
+
+        // RED 플레이어 전용 토픽으로 전송
+        if (room.getRedPlayer() != null) {
+            String topic = "/topic/game." + roomId + ".RED";
+            GameStateResponse redView = gameService.getGameState(roomId, room.getRedPlayer());
+            System.out.println("📤 Sending to RED: " + topic);
+            System.out.println("   Pieces count: " + redView.getPieces().size());
+            messagingTemplate.convertAndSend(topic, redView);
+        }
+
+        // BLUE 플레이어 전용 토픽으로 전송
+        if (room.getBluePlayer() != null) {
+            String topic = "/topic/game." + roomId + ".BLUE";
+            GameStateResponse blueView = gameService.getGameState(roomId, room.getBluePlayer());
+            System.out.println("📤 Sending to BLUE: " + topic);
+            System.out.println("   Pieces count: " + blueView.getPieces().size());
+            messagingTemplate.convertAndSend(topic, blueView);
+        }
     }
 }

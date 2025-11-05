@@ -13,6 +13,7 @@ public class Piece {
     private PieceType type;
     private Position position;
     private boolean captured;
+    private boolean revealed;  // 척후병에게 잡혔을 때 적에게 노출됨
 
     public Piece(String id, PlayerColor color, PieceType type, Position position) {
         this.id = id;
@@ -20,5 +21,6 @@ public class Piece {
         this.type = type;
         this.position = position;
         this.captured = false;
+        this.revealed = false;
     }
 }

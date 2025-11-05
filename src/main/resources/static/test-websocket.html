@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .log { border: 1px solid #ccc; padding: 10px; height: 400px; overflow-y: auto; background: #f5f5f5; }
+        .log-entry { margin: 5px 0; }
+        .info { color: blue; }
+        .success { color: green; }
+        .error { color: red; }
+        input, button { margin: 5px; padding: 5px; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Test</h1>
+
+    <div>
+        <h3>1. 플레이어 참가</h3>
+        <input type="text" id="playerId" placeholder="Player ID" value="player1">
+        <button onclick="joinGame()">Join Game</button>
+        <div>Room ID: <span id="roomId">-</span></div>
+        <div>Color: <span id="playerColor">-</span></div>
+    </div>
+
+    <div>
+        <h3>2. WebSocket 구독</h3>
+        <button onclick="connectWebSocket()">Connect WebSocket</button>
+        <button onclick="disconnect()">Disconnect</button>
+        <div>Status: <span id="wsStatus">Disconnected</span></div>
+    </div>
+
+    <div>
+        <h3>3. 테스트 메시지 전송</h3>
+        <button onclick="sendTestMessage()">Send Test to Topic</button>
+    </div>
+
+    <h3>로그</h3>
+    <div class="log" id="log"></div>
+
+    <script>
+        let stompClient = null;
+        let currentRoomId = null;
+        let currentPlayerColor = null;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + type;
+            entry.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        async function joinGame() {
+            const playerId = document.getElementById('playerId').value;
+            log('플레이어 참가 시도: ' + playerId);
+
+            try {
+                const response = await fetch('/api/game/join', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerId: playerId })
+                });
+
+                const data = await response.json();
+                currentRoomId = data.roomId;
+                currentPlayerColor = data.playerColor;
+
+                document.getElementById('roomId').textContent = currentRoomId;
+                document.getElementById('playerColor').textContent = currentPlayerColor;
+
+                log('✅ 참가 성공! Room: ' + currentRoomId + ', Color: ' + currentPlayerColor, 'success');
+                log('이제 "Connect WebSocket" 버튼을 클릭하세요');
+
+            } catch (error) {
+                log('❌ 참가 실패: ' + error, 'error');
+            }
+        }
+
+        function connectWebSocket() {
+            if (!currentRoomId || !currentPlayerColor) {
+                log('❌ 먼저 게임에 참가하세요!', 'error');
+                return;
+            }
+
+            log('WebSocket 연결 시도...');
+            const socket = new SockJS('/ws');
+            stompClient = Stomp.over(socket);
+
+            stompClient.connect({}, function(frame) {
+                log('✅ WebSocket 연결 성공!', 'success');
+                document.getElementById('wsStatus').textContent = 'Connected';
+
+                // 자신의 색상 토픽 구독
+                const topic = '/topic/game.' + currentRoomId + '.' + currentPlayerColor;
+                log('구독 중: ' + topic);
+
+                stompClient.subscribe(topic, function(message) {
+                    log('📥 메시지 수신!', 'success');
+                    log('내용: ' + message.body);
+
+                    try {
+                        const data = JSON.parse(message.body);
+                        log('파싱 성공: ' + JSON.stringify(data, null, 2));
+                    } catch (e) {
+                        log('파싱 실패');
+                    }
+                });
+
+                log('✅ 구독 완료: ' + topic, 'success');
+                log('이제 다른 브라우저 탭에서 player2로 참가해보세요!');
+
+            }, function(error) {
+                log('❌ WebSocket 연결 실패: ' + error, 'error');
+                document.getElementById('wsStatus').textContent = 'Error';
+            });
+        }
+
+        function disconnect() {
+            if (stompClient !== null) {
+                stompClient.disconnect();
+                log('WebSocket 연결 종료');
+                document.getElementById('wsStatus').textContent = 'Disconnected';
+            }
+        }
+
+        async function sendTestMessage() {
+            if (!currentRoomId || !currentPlayerColor) {
+                log('❌ 먼저 게임에 참가하세요!', 'error');
+                return;
+            }
+
+            const topic = '/topic/game.' + currentRoomId + '.' + currentPlayerColor;
+            log('테스트 메시지 전송 중: ' + topic);
+
+            try {
+                const response = await fetch('/api/test/ws?topic=' + encodeURIComponent(topic) + '&message=Test');
+                const data = await response.json();
+                log('✅ 테스트 메시지 전송됨: ' + JSON.stringify(data), 'success');
+            } catch (error) {
+                log('❌ 전송 실패: ' + error, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

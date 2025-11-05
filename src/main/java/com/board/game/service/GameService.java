@@ -13,10 +13,16 @@ import java.util.concurrent.ConcurrentHashMap;
 public class GameService {
 
     private final Map<String, GameRoom> rooms = new ConcurrentHashMap<>();
+    private final BattleRuleService battleRuleService;
+
+    public GameService(BattleRuleService battleRuleService) {
+        this.battleRuleService = battleRuleService;
+    }
 
     public String createRoom() {
         String roomId = UUID.randomUUID().toString().substring(0, 8);
         GameRoom room = new GameRoom(roomId);
+        room.getBoard().setBattleRuleService(battleRuleService);
         rooms.put(roomId, room);
         log.info("Created room: {}", roomId);
         return roomId;
@@ -123,15 +129,28 @@ public class GameService {
                     .toList();
             response.setPieces(filteredPieces);
         } else if (room.getStatus() == GameStatus.PLAYING && playerColor != null) {
-            // During PLAYING: Hide opponent piece types
+            // During PLAYING: Hide opponent piece types (unless revealed by scout)
             List<Piece> maskedPieces = pieces.stream()
                     .map(p -> {
                         if (p.getColor() != playerColor && !p.isCaptured()) {
-                            // Create a copy with hidden type for opponent pieces
-                            Piece masked = new Piece(p.getId(), p.getColor(), null, p.getPosition());
-                            masked.setCaptured(false);
-                            return masked;
+                            // Show revealed pieces, hide others
+                            if (p.isRevealed()) {
+                                // Show revealed piece with full info - create explicit copy
+                                log.debug("Player {} sees revealed opponent piece: {} ({})",
+                                    playerId, p.getId(), p.getType().getKoreanName());
+                                Piece revealed = new Piece(p.getId(), p.getColor(), p.getType(), p.getPosition());
+                                revealed.setCaptured(false);
+                                revealed.setRevealed(true);
+                                return revealed;
+                            } else {
+                                // Create a copy with hidden type for opponent pieces
+                                Piece masked = new Piece(p.getId(), p.getColor(), null, p.getPosition());
+                                masked.setCaptured(false);
+                                masked.setRevealed(false);
+                                return masked;
+                            }
                         }
+                        // Player's own pieces - return as is
                         return p;
                     })
                     .toList();
@@ -149,6 +168,10 @@ public class GameService {
             room.removePlayer(playerId);
             log.info("Player {} left room {}", playerId, roomId);
         }
+    }
+
+    public GameRoom getRoom(String roomId) {
+        return rooms.get(roomId);
     }
 
     public List<String> getAvailableRooms() {

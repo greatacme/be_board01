@@ -28,14 +28,14 @@ public class GameController {
 
         GameRoom room = gameService.findOrCreateRoom(playerId);
         if (room != null) {
-            GameStateResponse response = gameService.getGameState(room.getRoomId());
+            GameStateResponse response = gameService.getGameState(room.getRoomId(), playerId);
             response.setMessage("Player joined: " + playerId);
 
             // Send to the joining player first (so they know the roomId)
             messagingTemplate.convertAndSendToUser(playerId, "/queue/reply", response);
 
-            // Then broadcast to room
-            messagingTemplate.convertAndSend("/topic/game." + room.getRoomId(), response);
+            // Then broadcast to all players with their respective views
+            broadcastGameStateToRoom(room.getRoomId());
         }
     }
 
@@ -51,15 +51,10 @@ public class GameController {
                 request.getTo()
         );
 
-        GameStateResponse response = gameService.getGameState(request.getRoomId());
-        if (moved) {
-            response.setMessage("Move successful");
-        } else {
-            response.setMessage("Invalid move");
-        }
+        String message = moved ? "Move successful" : "Invalid move";
 
-        // Broadcast to all players in room
-        messagingTemplate.convertAndSend("/topic/game." + request.getRoomId(), response);
+        // Broadcast to all players with their respective views
+        broadcastGameStateToRoom(request.getRoomId(), message);
     }
 
     @MessageMapping("/game.leave")
@@ -70,10 +65,43 @@ public class GameController {
 
         gameService.leaveRoom(roomId, playerId);
 
-        GameStateResponse response = gameService.getGameState(roomId);
-        if (response != null) {
-            response.setMessage("Player left: " + playerId);
-            messagingTemplate.convertAndSend("/topic/game." + roomId, response);
+        // Broadcast to remaining players
+        broadcastGameStateToRoom(roomId, "Player left: " + playerId);
+    }
+
+    /**
+     * 각 플레이어에게 맞춤형 게임 상태를 전송합니다.
+     * RED 플레이어는 /topic/game.{roomId}.RED 를 구독
+     * BLUE 플레이어는 /topic/game.{roomId}.BLUE 를 구독
+     */
+    private void broadcastGameStateToRoom(String roomId) {
+        broadcastGameStateToRoom(roomId, null);
+    }
+
+    private void broadcastGameStateToRoom(String roomId, String message) {
+        GameRoom room = gameService.getRoom(roomId);
+        if (room == null) {
+            return;
+        }
+
+        // RED 플레이어 전용 토픽으로 전송
+        if (room.getRedPlayer() != null) {
+            GameStateResponse redView = gameService.getGameState(roomId, room.getRedPlayer());
+            if (message != null) {
+                redView.setMessage(message);
+            }
+            log.debug("Broadcasting to RED player via /topic/game.{}.RED", roomId);
+            messagingTemplate.convertAndSend("/topic/game." + roomId + ".RED", redView);
+        }
+
+        // BLUE 플레이어 전용 토픽으로 전송
+        if (room.getBluePlayer() != null) {
+            GameStateResponse blueView = gameService.getGameState(roomId, room.getBluePlayer());
+            if (message != null) {
+                blueView.setMessage(message);
+            }
+            log.debug("Broadcasting to BLUE player via /topic/game.{}.BLUE", roomId);
+            messagingTemplate.convertAndSend("/topic/game." + roomId + ".BLUE", blueView);
         }
     }
 }

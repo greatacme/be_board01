@@ -1,5 +1,6 @@
 package com.board.game.model;
 
+import com.board.game.service.BattleRuleService;
 import lombok.Data;
 import java.util.*;
 
@@ -7,6 +8,7 @@ import java.util.*;
 public class Board {
     private List<Piece> pieces;
     private PlayerColor currentTurn;
+    private BattleRuleService battleRuleService;
 
     public Board() {
         this(false);
@@ -18,6 +20,10 @@ public class Board {
         if (!empty) {
             initializeBoard();
         }
+    }
+
+    public void setBattleRuleService(BattleRuleService battleRuleService) {
+        this.battleRuleService = battleRuleService;
     }
 
     public List<Piece> getInitialPieces(PlayerColor color) {
@@ -121,6 +127,11 @@ public class Board {
             return false;
         }
 
+        // Check if piece can move (지뢰는 이동 불가)
+        if (battleRuleService != null && !battleRuleService.canMove(piece.getType())) {
+            return false;
+        }
+
         // Check if destination is valid
         if (!to.isValid()) {
             return false;
@@ -187,16 +198,49 @@ public class Board {
             return false;
         }
 
-        Piece piece = getPieceAt(from);
-        Piece destPiece = getPieceAt(to);
+        Piece attacker = getPieceAt(from);
+        Piece defender = getPieceAt(to);
 
-        // Capture opponent piece if present
-        if (destPiece != null) {
-            destPiece.setCaptured(true);
+        // If destination is empty, just move
+        if (defender == null) {
+            attacker.setPosition(to);
+        } else {
+            // Battle resolution
+            if (battleRuleService != null) {
+                int result = battleRuleService.resolveBattle(attacker.getType(), defender.getType());
+
+                if (result == 1) {
+                    // Attacker wins
+                    defender.setCaptured(true);
+                    attacker.setPosition(to);
+
+                    // 척후병 특수 규칙: 척후병을 제거한 말은 적에게 노출됨
+                    if (battleRuleService.isScout(defender.getType())) {
+                        attacker.setRevealed(true);
+                        System.out.println("DEBUG: " + attacker.getType().getKoreanName() +
+                            " (" + attacker.getId() + ") defeated scout - NOW REVEALED");
+                    }
+                } else if (result == -1) {
+                    // Defender wins
+                    attacker.setCaptured(true);
+
+                    // 척후병 특수 규칙: 척후병을 공격한 말은 적에게 노출됨
+                    if (battleRuleService.isScout(attacker.getType())) {
+                        defender.setRevealed(true);
+                        System.out.println("DEBUG: " + defender.getType().getKoreanName() +
+                            " (" + defender.getId() + ") defeated scout - NOW REVEALED");
+                    }
+                } else {
+                    // Draw - both pieces are captured
+                    attacker.setCaptured(true);
+                    defender.setCaptured(true);
+                }
+            } else {
+                // Fallback: simple capture without battle rules
+                defender.setCaptured(true);
+                attacker.setPosition(to);
+            }
         }
-
-        // Move piece
-        piece.setPosition(to);
 
         // Switch turn
         currentTurn = (currentTurn == PlayerColor.RED) ? PlayerColor.BLUE : PlayerColor.RED;
