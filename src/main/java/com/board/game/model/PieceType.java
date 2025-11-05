@@ -15,26 +15,48 @@ public enum PieceType {
     BRIGADIER_GENERAL("준장", "★"),
 
     // 영관급 (3개)
-    COLONEL("대령", "▣"),
-    LIEUTENANT_COLONEL("중령", "▤"),
-    MAJOR("소령", "▥"),
+    //COLONEL("대령", "▣"),
+    //LIEUTENANT_COLONEL("중령", "▤"),
+    //MAJOR("소령", "▥"),
+
+    COLONEL("대령", "***"),
+    LIEUTENANT_COLONEL("중령", "**"),
+    MAJOR("소령", "*"),
+
 
     // 위관급 (4개)
-    CAPTAIN("대위", "◆"),
-    FIRST_LIEUTENANT("중위", "◇"),
-    SECOND_LIEUTENANT("소위", "◈"),
-    WARRANT_OFFICER("준위", "◉"),
+    //CAPTAIN("대위", "◆"),
+    //FIRST_LIEUTENANT("중위", "◇"),
+    //SECOND_LIEUTENANT("소위", "◈"),
+    //WARRANT_OFFICER("준위", "◉"),
+
+    CAPTAIN("대위", "◇◇◇"),
+    FIRST_LIEUTENANT("중위", "◇◇"),
+    SECOND_LIEUTENANT("소위", "◇"),
+    WARRANT_OFFICER("준위", "◆"),
+
 
     // 부사관 (3개)
-    MASTER_SERGEANT("상사", "▲"),
-    SERGEANT_FIRST_CLASS("중사", "△"),
-    SERGEANT("하사", "▽"),
+    //MASTER_SERGEANT("상사", "▲"),
+    //SERGEANT_FIRST_CLASS("중사", "△"),
+    //SERGEANT("하사", "▽"),
+
+    MASTER_SERGEANT("상사", "▽"),
+    SERGEANT_FIRST_CLASS("중사", "︾"),
+    SERGEANT("하사", "﹀"),
+
 
     // 병사 (4개)
-    STAFF_SERGEANT("병장", "●"),
-    CORPORAL("상병", "◐"),
-    PRIVATE_FIRST_CLASS("일병", "◑"),
-    PRIVATE("이병", "○"),
+    //STAFF_SERGEANT("병장", "●"),
+    //CORPORAL("상병", "◐"),
+    //PRIVATE_FIRST_CLASS("일병", "◑"),
+    //PRIVATE("이병", "○"),
+
+    STAFF_SERGEANT("병장", "▤"),
+    CORPORAL("상병", "≡"),
+    PRIVATE_FIRST_CLASS("일병", "="),
+    PRIVATE("이병", "-"),
+
 
     // 특수부대 (14개)
     ENGINEER("공병", "⚒"),       // 2개
