@@ -249,7 +249,21 @@ public class Board {
     }
 
     public boolean isGameOver() {
-        // Game is over if one player has no pieces left
+        // Game is over if a flag is captured
+        boolean redFlagCaptured = pieces.stream()
+                .anyMatch(p -> p.getColor() == PlayerColor.RED &&
+                              p.getType() == PieceType.FLAG &&
+                              p.isCaptured());
+        boolean blueFlagCaptured = pieces.stream()
+                .anyMatch(p -> p.getColor() == PlayerColor.BLUE &&
+                              p.getType() == PieceType.FLAG &&
+                              p.isCaptured());
+
+        if (redFlagCaptured || blueFlagCaptured) {
+            return true;
+        }
+
+        // Game is also over if one player has no pieces left
         long redCount = pieces.stream()
                 .filter(p -> !p.isCaptured() && p.getColor() == PlayerColor.RED)
                 .count();
@@ -265,6 +279,25 @@ public class Board {
             return null;
         }
 
+        // Check if a flag was captured
+        boolean redFlagCaptured = pieces.stream()
+                .anyMatch(p -> p.getColor() == PlayerColor.RED &&
+                              p.getType() == PieceType.FLAG &&
+                              p.isCaptured());
+        boolean blueFlagCaptured = pieces.stream()
+                .anyMatch(p -> p.getColor() == PlayerColor.BLUE &&
+                              p.getType() == PieceType.FLAG &&
+                              p.isCaptured());
+
+        // If a flag was captured, the opponent wins
+        if (redFlagCaptured) {
+            return PlayerColor.BLUE; // Blue wins
+        }
+        if (blueFlagCaptured) {
+            return PlayerColor.RED; // Red wins
+        }
+
+        // Otherwise, winner is determined by piece count
         long redCount = pieces.stream()
                 .filter(p -> !p.isCaptured() && p.getColor() == PlayerColor.RED)
                 .count();
