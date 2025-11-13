@@ -2,8 +2,12 @@ services:
   - type: web
     name: be-board01
     env: java
-    buildCommand: ./gradlew build -x test
-    startCommand: java -jar build/libs/be_board01-0.0.1-SNAPSHOT.jar
+    region: oregon
+    plan: free
+    buildCommand: ./gradlew clean build -x test
+    startCommand: java -Dserver.port=$PORT -jar build/libs/*.jar
     envVars:
-      - key: JAVA_OPTS
-        value: -Xmx512m
+      - key: JAVA_VERSION
+        value: 17
+      - key: GRADLE_OPTS
+        value: "-Dorg.gradle.daemon=false"
